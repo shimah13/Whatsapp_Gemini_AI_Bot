@@ -4,9 +4,9 @@ import requests
 import os
 import fitz
 
-# Vercel-க்குத் தேவையான Flask Instance-ஐ மிகத் தெளிவாக முதலில் வரையறுக்கிறோம்
+# Vercel-க்குத் தேவையான Flask Instance
 app = Flask(__name__)
-application = app  # Vercel-க்கு 'application' என்றும் அடையாளம் காட்டுகிறோம்
+application = app 
 
 wa_token = os.environ.get("WA_TOKEN")
 genai.configure(api_key=os.environ.get("GEN_API"))
@@ -50,7 +50,7 @@ def send(answer):
           "text": {"body": f"{answer}"},
     }
     response = requests.post(url, headers=headers, json=data)
-    print("Meta API Response:", response.json()) # மெட்டாவுக்கு மெசேஜ் அனுப்பிய பின் வரும் பதில் லாக்
+    print("Meta API Response:", response.json()) 
     return response
 
 def remove(*file_paths):
@@ -73,7 +73,7 @@ def webhook():
         else:
             return "Failed", 403
             
-   elif request.method == "POST":
+    elif request.method == "POST":
         try:
             body = request.get_json()
             print("\n📥 --- STEP 1: Meta-விலிருந்து வந்த மொத்த டேட்டா ---")

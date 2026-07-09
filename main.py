@@ -10,7 +10,7 @@ phone_id=os.environ.get("PHONE_ID")
 phone=os.environ.get("PHONE_NUMBER")
 name="Your name or nickname" #The bot will consider this person as its owner or creator
 bot_name="Give a name to your bot" #This will be the name of your bot, eg: "Hello I am Astro Bot"
-model_name="gemini-1.5-flash-latest" #Switch to "gemini-1.0-pro" or any free model, if "gemini-1.5-flash" becomes paid in future.
+model_name="gemini-1.5-flash" #Switch to "gemini-1.0-pro" or any free model, if "gemini-1.5-flash" becomes paid in future.
 
 app=Flask(__name__)
 
@@ -120,7 +120,8 @@ def webhook():
                 files=genai.list_files()
                 for file in files:
                     file.delete()
-        except :pass
+        # except :pass
+		Exception as e: print(e)
         return jsonify({"status": "ok"}), 200
 if __name__ == "__main__":
     app.run(debug=True, port=8000)

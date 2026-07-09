@@ -37,13 +37,6 @@ model = genai.GenerativeModel(model_name=model_name,
 
 convo = model.start_chat(history=[])
 
-# convo.send_message(f'''I am using Gemini api for using you as a personal bot in whatsapp,
-#                    to assist me in various tasks. 
-#                    So from now you are "{bot_name}" created by {name}. 
-#                    And don't give any response to this prompt. 
-#                    This message always gets executed when i run this bot script. 
-#                    So reply to only the prompts after this.''')
-
 def send(answer):
     url = f"https://graph.facebook.com/v18.0/{phone_id}/messages"
     headers = {
@@ -57,6 +50,7 @@ def send(answer):
           "text": {"body": f"{answer}"},
     }
     response = requests.post(url, headers=headers, json=data)
+    print("Meta API Response:", response.json()) # மெட்டாவுக்கு மெசேஜ் அனுப்பிய பின் வரும் பதில் லாக்
     return response
 
 def remove(*file_paths):
@@ -81,55 +75,74 @@ def webhook():
             
     elif request.method == "POST":
         try:
-            data = request.get_json()["entry"][0]["changes"][0]["value"]["messages"][0]
-            if data["type"] == "text":
-                prompt = data["text"]["body"]
-                convo.send_message(prompt)
-                send(convo.last.text)
-            else:
-                media_url_endpoint = f'https://graph.facebook.com/v18.0/{data[data["type"]]["id"]}/'
-                headers = {'Authorization': f'Bearer {wa_token}'}
-                media_response = requests.get(media_url_endpoint, headers=headers)
-                media_url = media_response.json()["url"]
-                media_download_response = requests.get(media_url, headers=headers)
+            body = request.get_json()
+            print("Incoming Webhook Body:", body) # மெட்டாவிலிருந்து வரும் மொத்த டேட்டாவையும் லாக்ஸில் காட்டும்
+            
+            # மெசேஜ் உள்ளே இருக்கிறதா என்று பாதுகாப்பாக சரிபார்க்கும் லாஜிக்
+            if body.get("entry") and body["entry"][0].get("changes") and body["entry"][0]["changes"][0].get("value") and "messages" in body["entry"][0]["changes"][0]["value"]:
                 
-                if data["type"] == "audio":
-                    filename = "/tmp/temp_audio.mp3"
-                elif data["type"] == "image":
-                    filename = "/tmp/temp_image.jpg"
-                elif data["type"] == "document":
-                    doc = fitz.open(stream=media_download_response.content, filetype="pdf")
-                    for _, page in enumerate(doc):
-                        destination = "/tmp/temp_image.jpg"
-                        pix = page.get_pixmap()
-                        pix.save(destination)
-                        file = genai.upload_file(path=destination, display_name="tempfile")
+                data = body["entry"][0]["changes"][0]["value"]["messages"][0]
+                
+                # 1. டெக்ஸ்ட் மெசேஜாக இருந்தால்:
+                if data.get("type") == "text":
+                    prompt = data["text"]["body"]
+                    convo.send_message(prompt)
+                    send(convo.last.text)
+                    print("Text reply processed successfully.")
+                
+                # 2. மீடியா மெசேஜாக இருந்தால் (ஆடியோ/இமேஜ்/டாக்குமெண்ட்):
+                else:
+                    media_type = data.get("type")
+                    media_url_endpoint = f'https://graph.facebook.com/v18.0/{data[media_type]["id"]}/'
+                    headers = {'Authorization': f'Bearer {wa_token}'}
+                    media_response = requests.get(media_url_endpoint, headers=headers)
+                    media_url = media_response.json().get("url")
+                    
+                    if not media_url:
+                        print("Failed to fetch media URL from Meta.")
+                        return jsonify({"status": "media_url_error"}), 200
+                        
+                    media_download_response = requests.get(media_url, headers=headers)
+                    
+                    # PDF டாக்குமெண்ட் சரிபார்ப்பு
+                    if media_type == "document" and data["document"].get("mime_type") == "application/pdf":
+                        doc = fitz.open(stream=media_download_response.content, filetype="pdf")
+                        for _, page in enumerate(doc):
+                            destination = "/tmp/temp_image.jpg"
+                            pix = page.get_pixmap()
+                            pix.save(destination)
+                            file = genai.upload_file(path=destination, display_name="tempfile")
+                            response = model.generate_content(["What is this", file])
+                            answer = response._result.candidates[0].content.parts[0].text
+                            convo.send_message(f"PDF content: {answer}")
+                            send(convo.last.text)
+                            remove(destination)
+                    
+                    # இமேஜ் அல்லது ஆடியோ சரிபார்ப்பு
+                    elif media_type in ["audio", "image"]:
+                        filename = "/tmp/temp_audio.mp3" if media_type == "audio" else "/tmp/temp_image.jpg"
+                        with open(filename, "wb") as temp_media:
+                            temp_media.write(media_download_response.content)
+                            
+                        file = genai.upload_file(path=filename, display_name="tempfile")
                         response = model.generate_content(["What is this", file])
                         answer = response._result.candidates[0].content.parts[0].text
-                        convo.send_message(f"PDF content: {answer}")
+                        remove("/tmp/temp_image.jpg", "/tmp/temp_audio.mp3")
+                        convo.send_message(f"Media transcription: {answer}")
                         send(convo.last.text)
-                        remove(destination)
-                else:
-                    send("This format is not Supported by the bot ☹")
-                    return jsonify({"status": "unsupported"}), 200
+                        
+                        files = genai.list_files()
+                        for f in files:
+                            f.delete()
+                    else:
+                        send("This format is not Supported by the bot ☹")
+            else:
+                print("Webhook received, but it is a status update (delivery/read receipt), not a new message.")
                 
-                with open(filename, "wb") as temp_media:
-                    temp_media.write(media_download_response.content)
-                file = genai.upload_file(path=filename, display_name="tempfile")
-                response = model.generate_content(["What is this", file])
-                answer = response._result.candidates[0].content.parts[0].text
-                remove("/tmp/temp_image.jpg", "/tmp/temp_audio.mp3")
-                convo.send_message(f"Media transcription: {answer}")
-                send(convo.last.text)
-                
-                files = genai.list_files()
-                for file in files:
-                    file.delete()
-            
             return jsonify({"status": "ok"}), 200
             
         except Exception as e:
-            print(f"Error occurred: {e}")
+            print(f"Error occurred in Webhook: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":

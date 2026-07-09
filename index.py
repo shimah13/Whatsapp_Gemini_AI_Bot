@@ -38,6 +38,7 @@ def index():
 
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
+    print(f"📢 ANY REQUEST RECEIVED: {request.method}")
     # v25.0 வெப்ஹூக் வெரிஃபிகேஷன்
     if request.method == "GET":
         mode = request.args.get("hub.mode")

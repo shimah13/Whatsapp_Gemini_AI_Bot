@@ -121,7 +121,10 @@ def webhook():
                 for file in files:
                     file.delete()
         # except :pass
-		Exception as e: print(e)
+		except Exception as e:
+            print(f"Error occurred: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+        
         return jsonify({"status": "ok"}), 200
 if __name__ == "__main__":
     app.run(debug=True, port=8000)

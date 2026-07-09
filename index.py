@@ -13,6 +13,7 @@ bot_name="Give a name to your bot" #This will be the name of your bot, eg: "Hell
 model_name="gemini-1.5-flash" #Switch to "gemini-1.0-pro" or any free model, if "gemini-1.5-flash" becomes paid in future.
 
 app=Flask(__name__)
+app.debug = True
 
 generation_config = {
   "temperature": 1,

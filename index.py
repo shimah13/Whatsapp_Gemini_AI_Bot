@@ -37,12 +37,12 @@ model = genai.GenerativeModel(model_name=model_name,
 
 convo = model.start_chat(history=[])
 
-convo.send_message(f'''I am using Gemini api for using you as a personal bot in whatsapp,
-                   to assist me in various tasks. 
-                   So from now you are "{bot_name}" created by {name}. 
-                   And don't give any response to this prompt. 
-                   This message always gets executed when i run this bot script. 
-                   So reply to only the prompts after this.''')
+# convo.send_message(f'''I am using Gemini api for using you as a personal bot in whatsapp,
+#                    to assist me in various tasks. 
+#                    So from now you are "{bot_name}" created by {name}. 
+#                    And don't give any response to this prompt. 
+#                    This message always gets executed when i run this bot script. 
+#                    So reply to only the prompts after this.''')
 
 def send(answer):
     url = f"https://graph.facebook.com/v18.0/{phone_id}/messages"

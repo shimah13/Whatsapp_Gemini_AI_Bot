@@ -73,77 +73,40 @@ def webhook():
         else:
             return "Failed", 403
             
-    elif request.method == "POST":
+   elif request.method == "POST":
         try:
             body = request.get_json()
-            print("Incoming Webhook Body:", body) # மெட்டாவிலிருந்து வரும் மொத்த டேட்டாவையும் லாக்ஸில் காட்டும்
+            print("\n📥 --- STEP 1: Meta-விலிருந்து வந்த மொத்த டேட்டா ---")
+            print(body)
             
-            # மெசேஜ் உள்ளே இருக்கிறதா என்று பாதுகாப்பாக சரிபார்க்கும் லாஜிக்
-            if body.get("entry") and body["entry"][0].get("changes") and body["entry"][0]["changes"][0].get("value") and "messages" in body["entry"][0]["changes"][0]["value"]:
+            # மெசேஜ் இருக்கா இல்லையான்னு செக் பண்றோம்
+            value = body["entry"][0]["changes"][0]["value"]
+            if "messages" in value:
+                data = value["messages"][0]
+                print("\n💬 --- STEP 2: மெசேஜ் டேட்டா பிரித்தெடுக்கப்பட்டது ---")
+                print(data)
                 
-                data = body["entry"][0]["changes"][0]["value"]["messages"][0]
-                
-                # 1. டெக்ஸ்ட் மெசேஜாக இருந்தால்:
-                if data.get("type") == "text":
+                if data["type"] == "text":
                     prompt = data["text"]["body"]
+                    print(f"\n🤖 --- STEP 3: ஜெமினிக்கு அனுப்பும் கேள்வி: {prompt}")
+                    
                     convo.send_message(prompt)
-                    send(convo.last.text)
-                    print("Text reply processed successfully.")
-                
-                # 2. மீடியா மெசேஜாக இருந்தால் (ஆடியோ/இமேஜ்/டாக்குமெண்ட்):
-                else:
-                    media_type = data.get("type")
-                    media_url_endpoint = f'https://graph.facebook.com/v18.0/{data[media_type]["id"]}/'
-                    headers = {'Authorization': f'Bearer {wa_token}'}
-                    media_response = requests.get(media_url_endpoint, headers=headers)
-                    media_url = media_response.json().get("url")
+                    reply = convo.last.text
+                    print(f"\n✨ --- STEP 4: ஜெமினி கொடுத்த பதில்: {reply}")
                     
-                    if not media_url:
-                        print("Failed to fetch media URL from Meta.")
-                        return jsonify({"status": "media_url_error"}), 200
-                        
-                    media_download_response = requests.get(media_url, headers=headers)
-                    
-                    # PDF டாக்குமெண்ட் சரிபார்ப்பு
-                    if media_type == "document" and data["document"].get("mime_type") == "application/pdf":
-                        doc = fitz.open(stream=media_download_response.content, filetype="pdf")
-                        for _, page in enumerate(doc):
-                            destination = "/tmp/temp_image.jpg"
-                            pix = page.get_pixmap()
-                            pix.save(destination)
-                            file = genai.upload_file(path=destination, display_name="tempfile")
-                            response = model.generate_content(["What is this", file])
-                            answer = response._result.candidates[0].content.parts[0].text
-                            convo.send_message(f"PDF content: {answer}")
-                            send(convo.last.text)
-                            remove(destination)
-                    
-                    # இமேஜ் அல்லது ஆடியோ சரிபார்ப்பு
-                    elif media_type in ["audio", "image"]:
-                        filename = "/tmp/temp_audio.mp3" if media_type == "audio" else "/tmp/temp_image.jpg"
-                        with open(filename, "wb") as temp_media:
-                            temp_media.write(media_download_response.content)
-                            
-                        file = genai.upload_file(path=filename, display_name="tempfile")
-                        response = model.generate_content(["What is this", file])
-                        answer = response._result.candidates[0].content.parts[0].text
-                        remove("/tmp/temp_image.jpg", "/tmp/temp_audio.mp3")
-                        convo.send_message(f"Media transcription: {answer}")
-                        send(convo.last.text)
-                        
-                        files = genai.list_files()
-                        for f in files:
-                            f.delete()
-                    else:
-                        send("This format is not Supported by the bot ☹")
+                    # உங்கள் ஒரிஜினல் send பங்க்ஷனை கூப்பிடுகிறோம்
+                    res = send(reply)
+                    print("\n🚀 --- STEP 5: வாட்ஸ்அப் செண்ட் ஸ்டேட்டஸ் ---")
+                    print(res.json())
             else:
-                print("Webhook received, but it is a status update (delivery/read receipt), not a new message.")
+                print("\nℹ️ --- INFO: இது புது மெசேஜ் இல்லை (Delivery/Read Receipt) ---")
                 
             return jsonify({"status": "ok"}), 200
             
         except Exception as e:
-            print(f"Error occurred in Webhook: {e}")
-            return jsonify({"status": "error", "message": str(e)}), 500
+            print(f"\n❌ --- ERROR: கோட் இங்கே தான் ஸ்டக் ஆகியுள்ளது! ---")
+            print(f"காரணம்: {e}")
+            return jsonify({"status": "error"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000)
